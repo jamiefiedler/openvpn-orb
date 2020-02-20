@@ -47,7 +47,7 @@ commands:
             - run:
                 name: Set credentials for auth-user-pass
                 command: |
-                  echo ${<<parameters.login>>:?} | base64 --decode >> vpn.login
+                  echo ${<<parameters.login>>:-""} | base64 --decode >> vpn.login
       - run:
           name: Connect VPN
           command: |
@@ -84,7 +84,7 @@ example:
     usage:
       version: 2.1
       orbs:
-        vpn: titel-media/openvpn@0.0.1
+        vpn: jamiefiedler/aws-clientvpn
       jobs:
         ping:
           executor: vpn/default
