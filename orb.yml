@@ -52,7 +52,7 @@ commands:
           name: Connect VPN
           command: |
             ovpn_params=()
-            if [ -f vpn.login ]
+            if [ -s vpn.login ]
             then
                 ovpn_params+=(--auth-user-pass vpn.login)
             fi
