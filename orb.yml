@@ -1,12 +1,16 @@
 version: 2.1
 description: OpenVPN client Orb
+display:
+  home_url: https://aws.amazon.com/s3/
+  source_url: https://github.com/jamiefiedler/openvpn-orb
 
 executors:
   default:
     description: |
-      "Tested only on the CircleCI machine executor, but should work
-      on most debian/ubuntu based images as well"
-    machine: true
+      "AWS Client VPN via mutual authentication certificates."
+#    machine: true
+    machine:
+      image: ubuntu-1604:201903-01
 
 commands:
   install:
@@ -15,11 +19,10 @@ commands:
       - run:
           name: Install OpenVPN
           command: |
-            # There seems to be a bug with the openvpn aptrepo sources
-            sudo apt-get update # for apt-get to recognise openvpn
-            sudo apt-get remove openvpn # remove ubuntu aptrepo source
-            sudo apt-get update
-            sudo apt-get install openvpn -y
+            sudo sh -c "curl -s https://swupdate.openvpn.net/repos/repo-public.gpg | apt-key add -"
+            sudo sh -c 'echo "deb http://build.openvpn.net/debian/openvpn/stable xenial main" > /etc/apt/sources.list.d/openvpn-aptrepo.list'
+            sudo apt-get -q -y update
+            sudo apt-get -q -y install openvpn
   connect:
     description: "Connect to OpenVPN"
     parameters:
@@ -35,15 +38,26 @@ commands:
         default: VPN_LOGIN
     steps:
       - run:
-          name: Init VPN
+          name: Initialize VPN
           command: |
             echo ${<<parameters.config>>:?} | base64 --decode >> config.ovpn
-            echo ${<<parameters.login>>:?} | base64 --decode >> vpn.login
+      - when:
+          condition: << parameters.login >>
+          steps:
+            - run:
+                name: Set credentials for auth-user-pass
+                command: |
+                  echo ${<<parameters.login>>:?} | base64 --decode >> vpn.login
       - run:
-          name: Connect to VPN
+          name: Connect VPN
           command: |
+            ovpn_params=()
+            if [ -f vpn.login ]
+            then
+                ovpn_params+=(--auth-user-pass vpn.login)
+            fi
             wget -qO- http://checkip.amazonaws.com > initial.ip
-            sudo openvpn --config config.ovpn --auth-user-pass vpn.login > openvpn.log 2>&1 &
+            sudo openvpn --config config.ovpn "${ovpn_params[@]}" > openvpn.log 2>&1 &
             while [ -n "$(ip addr show tun0 2>&1 > /dev/null)" ]; do
               sleep 0.1;
             done
@@ -58,10 +72,10 @@ commands:
     description: "Disconnect from OpenVPN"
     steps:
       - run:
-          name: Disconnect from VPN
+          name: Disconnect VPN
           command: sudo killall openvpn || true
       - run:
-          name: remove OpenVPN config
+          name: Remove OpenVPN config
           command: sudo rm config.ovpn
 
 example:
